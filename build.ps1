@@ -5,7 +5,7 @@ param(
 
 $ErrorActionPreference = 'Stop'
 $projectFile = Join-Path $PSScriptRoot 'WpeRemix.csproj'
-$publishDirectory = Join-Path $PSScriptRoot 'release\v1.4-win-x64'
+$publishDirectory = Join-Path $PSScriptRoot 'release\v1.5-win-x64'
 $publishArguments = @('publish', $projectFile, '-c', 'Release', '-r', 'win-x64', '-o', $publishDirectory, '--nologo')
 if ($Standalone) {
     $publishArguments += @('--self-contained', 'true', '-p:PublishSingleFile=true', '-p:IncludeNativeLibrariesForSelfExtract=true')

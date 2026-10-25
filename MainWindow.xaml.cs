@@ -11,6 +11,9 @@ using System.Text.Json;
 using System.Threading;
 using System.Threading.Tasks;
 using System.Windows;
+using System.Windows.Controls;
+using System.Windows.Controls.Primitives;
+using System.Windows.Input;
 using System.Windows.Interop;
 using System.Windows.Media;
 using System.Windows.Media.Imaging;
@@ -33,7 +36,7 @@ public partial class MainWindow : Window, INotifyPropertyChanged
     private string _outputDirectory;
     private bool _isOutputDirectoryCustom;
     private BitmapSource? _previewImage;
-    private string _previewCaption = "选择任务查看详情";
+    private string _previewCaption = string.Empty;
 
     public MainWindow()
     {
@@ -68,8 +71,28 @@ public partial class MainWindow : Window, INotifyPropertyChanged
     public bool CanEdit => !_isBusy && !_isAdding;
     public bool CanCancel => _isBusy && !_cancelRequested;
     public bool CanStart => CanEdit && Jobs.Any(job => job.CanProcess) && !string.IsNullOrWhiteSpace(OutputDirectory);
-    public bool CanOpenImage => SelectedJob != null && !string.IsNullOrWhiteSpace(SelectedJob.ResultImage) && File.Exists(SelectedJob.ResultImage);
-    public bool CanOpenResult => SelectedJob != null && !string.IsNullOrWhiteSpace(SelectedJob.OutputDirectory) && Directory.Exists(SelectedJob.OutputDirectory);
+    public bool CanOpenImage => SelectedJob != null && SelectedJob.HasResult && !string.IsNullOrWhiteSpace(SelectedJob.ResultImage) && File.Exists(SelectedJob.ResultImage);
+    public bool CanOpenResult => SelectedJob != null && SelectedJob.HasResult && !string.IsNullOrWhiteSpace(SelectedJob.OutputDirectory) && Directory.Exists(SelectedJob.OutputDirectory);
+    public bool HasSelectedJob => SelectedJob != null;
+    public bool HasSelectedReport => !string.IsNullOrWhiteSpace(SelectedDetail);
+    public bool HasPreviewCaption => !string.IsNullOrWhiteSpace(PreviewCaption);
+    public bool HasResultActions => CanOpenImage || CanOpenResult;
+    public bool CanOpenSelectedPath => FindContainingDirectory(SelectedPath) != null;
+    public string SelectedPath
+    {
+        get
+        {
+            if (SelectedJob == null)
+            {
+                return string.Empty;
+            }
+            if (!string.IsNullOrWhiteSpace(SelectedJob.OutputDirectory))
+            {
+                return SelectedJob.OutputDirectory;
+            }
+            return SelectedJob.SourcePath;
+        }
+    }
     public string StartLabel
     {
         get
@@ -153,6 +176,7 @@ public partial class MainWindow : Window, INotifyPropertyChanged
         {
             _previewCaption = value;
             OnPropertyChanged();
+            OnPropertyChanged(nameof(HasPreviewCaption));
         }
     }
 
@@ -162,7 +186,7 @@ public partial class MainWindow : Window, INotifyPropertyChanged
         {
             if (SelectedJob == null)
             {
-                return "等待你的下一张收藏";
+                return string.Empty;
             }
             return SelectedJob.Name;
         }
@@ -194,7 +218,11 @@ public partial class MainWindow : Window, INotifyPropertyChanged
         {
             if (SelectedJob == null)
             {
-                return "静态合成保留原始图层；脚本、粒子和实时文字不会写入图片";
+                return string.Empty;
+            }
+            if (SelectedJob.IsRunning)
+            {
+                return SelectedJob.Detail;
             }
             return SelectedJob.FullDetail;
         }
@@ -218,10 +246,9 @@ public partial class MainWindow : Window, INotifyPropertyChanged
     private void RefreshPreview()
     {
         PreviewImage = null;
-        PreviewCaption = "选择任务查看详情";
+        PreviewCaption = string.Empty;
         if (SelectedJob != null)
         {
-            PreviewCaption = SelectedJob.SourcePath;
             if (CanOpenImage)
             {
                 try
@@ -253,6 +280,11 @@ public partial class MainWindow : Window, INotifyPropertyChanged
         OnPropertyChanged(nameof(SelectedDetail));
         OnPropertyChanged(nameof(CanOpenImage));
         OnPropertyChanged(nameof(CanOpenResult));
+        OnPropertyChanged(nameof(HasSelectedJob));
+        OnPropertyChanged(nameof(HasSelectedReport));
+        OnPropertyChanged(nameof(HasResultActions));
+        OnPropertyChanged(nameof(SelectedPath));
+        OnPropertyChanged(nameof(CanOpenSelectedPath));
     }
 
     private static string FormatSize(long length)
@@ -266,8 +298,16 @@ public partial class MainWindow : Window, INotifyPropertyChanged
 
     private void PreviewLayout_SizeChanged(object sender, SizeChangedEventArgs e)
     {
-        double detailHeight = PreviewDetails.ActualHeight + PreviewDetails.Margin.Top;
-        double actionHeight = PreviewActions.ActualHeight + PreviewActions.Margin.Top;
+        double detailHeight = 0;
+        double actionHeight = 0;
+        if (PreviewDetails.Visibility == Visibility.Visible)
+        {
+            detailHeight = PreviewDetails.ActualHeight + PreviewDetails.Margin.Top;
+        }
+        if (PreviewActions.Visibility == Visibility.Visible)
+        {
+            actionHeight = PreviewActions.ActualHeight + PreviewActions.Margin.Top;
+        }
         PreviewResultImage.MaxHeight = Math.Max(140, PreviewViewport.ActualHeight - detailHeight - actionHeight);
     }
 
@@ -357,16 +397,50 @@ public partial class MainWindow : Window, INotifyPropertyChanged
 
     private async void AddFiles_Click(object sender, RoutedEventArgs e)
     {
-        OpenFileDialog dialog = new OpenFileDialog
+        if (!CanEdit)
         {
-            Title = "添加 Wallpaper Engine 资源",
-            InitialDirectory = WallpaperLocations.InputDirectory,
-            Multiselect = true,
-            Filter = "支持的资源|*.pkg;*.tex;*.zip;*.png;*.jpg;*.jpeg;*.bmp;*.gif;*.tif;*.tiff|壁纸资源包|*.pkg;*.zip|纹理|*.tex|图片|*.png;*.jpg;*.jpeg;*.bmp;*.gif;*.tif;*.tiff|所有文件|*.*"
-        };
-        if (dialog.ShowDialog(this) == true)
+            return;
+        }
+        try
         {
-            await AddInputsAsync(dialog.FileNames);
+            IReadOnlyList<string> paths = InputPicker.Show(this, WallpaperLocations.InputDirectory);
+            if (paths.Count > 0)
+            {
+                await AddInputsAsync(paths);
+            }
+        }
+        catch (Exception exception) when (exception is COMException || exception is IOException || exception is UnauthorizedAccessException || exception is InvalidOperationException)
+        {
+            MessageBox.Show(this, "无法选择资源：" + exception.Message, "WpeRemix", MessageBoxButton.OK, MessageBoxImage.Error);
+        }
+    }
+
+    private void QueuePanel_MouseLeftButtonUp(object sender, MouseButtonEventArgs e)
+    {
+        if (!CanEdit || e.ChangedButton != MouseButton.Left)
+        {
+            return;
+        }
+        DependencyObject? current = e.OriginalSource as DependencyObject;
+        while (current != null && current != QueuePanel)
+        {
+            if (current is ButtonBase || current is ListBoxItem || current is ScrollBar)
+            {
+                return;
+            }
+            if (current is Visual)
+            {
+                current = VisualTreeHelper.GetParent(current);
+            }
+            else
+            {
+                current = LogicalTreeHelper.GetParent(current);
+            }
+        }
+        if (current == QueuePanel)
+        {
+            e.Handled = true;
+            AddFiles_Click(sender, e);
         }
     }
 
@@ -486,6 +560,7 @@ public partial class MainWindow : Window, INotifyPropertyChanged
                 JobItem job = batch[index];
                 SelectedJob = job;
                 job.Begin();
+                RefreshPreview();
                 Progress<ExportProgress> progress = new Progress<ExportProgress>(update =>
                 {
                     if (!job.IsRunning)
@@ -494,6 +569,11 @@ public partial class MainWindow : Window, INotifyPropertyChanged
                     }
                     job.Progress = update.Fraction;
                     job.Detail = update.Stage;
+                    if (SelectedJob == job)
+                    {
+                        OnPropertyChanged(nameof(SelectedDetail));
+                        OnPropertyChanged(nameof(HasSelectedReport));
+                    }
                 });
                 try
                 {
@@ -559,6 +639,50 @@ public partial class MainWindow : Window, INotifyPropertyChanged
         {
             OpenPath(SelectedJob.OutputDirectory!);
         }
+    }
+
+    private void OpenSelectedPath_Click(object sender, RoutedEventArgs e)
+    {
+        string? directory = FindContainingDirectory(SelectedPath);
+        if (directory == null)
+        {
+            return;
+        }
+        try
+        {
+            var startInfo = new ProcessStartInfo("explorer.exe") { UseShellExecute = true };
+            startInfo.ArgumentList.Add(directory);
+            Process.Start(startInfo);
+        }
+        catch (Exception exception)
+        {
+            MessageBox.Show(this, "无法打开文件夹：" + exception.Message, "WpeRemix", MessageBoxButton.OK, MessageBoxImage.Error);
+        }
+    }
+
+    private static string? FindContainingDirectory(string path)
+    {
+        try
+        {
+            if (string.IsNullOrWhiteSpace(path) || !Path.IsPathFullyQualified(path))
+            {
+                return null;
+            }
+            if (Directory.Exists(path))
+            {
+                return path;
+            }
+            string? directory = Path.GetDirectoryName(path);
+            if (directory != null && Directory.Exists(directory))
+            {
+                return directory;
+            }
+        }
+        catch (Exception exception) when (exception is ArgumentException || exception is NotSupportedException || exception is PathTooLongException)
+        {
+            return null;
+        }
+        return null;
     }
 
     private void OpenPath(string path)
@@ -708,7 +832,7 @@ public sealed class JobItem : INotifyPropertyChanged
         SourcePath = sourcePath;
         Name = name;
         _detail = Path.GetFileName(sourcePath);
-        FullDetail = sourcePath;
+        FullDetail = string.Empty;
     }
 
     public event PropertyChangedEventHandler? PropertyChanged;
@@ -718,6 +842,7 @@ public sealed class JobItem : INotifyPropertyChanged
     public string? ResultImage { get; private set; }
     public string FullDetail { get; private set; }
     public bool CanProcess => _status == "等待处理" || _status == "失败" || _status == "已取消";
+    public bool HasResult => _status == "已完成" || _status == "已合成" || _status == "已提取";
     public string Status => _status;
     public bool IsRunning => _isRunning;
 
@@ -765,9 +890,11 @@ public sealed class JobItem : INotifyPropertyChanged
     {
         _isRunning = true;
         _status = "处理中";
+        OutputDirectory = null;
+        ResultImage = null;
         Progress = 0;
         Detail = "准备解析资源";
-        FullDetail = SourcePath;
+        FullDetail = string.Empty;
         NotifyState();
     }
 
@@ -787,11 +914,10 @@ public sealed class JobItem : INotifyPropertyChanged
             _status = "已完成";
             Detail = "PNG 与 " + result.AssetCount + " 张素材图片已保存";
         }
-        FullDetail = "输出：" + result.OutputDirectory;
+        FullDetail = string.Join(Environment.NewLine, result.Warnings);
         if (result.Warnings.Count > 0)
         {
             Detail += " · " + result.Warnings.Count + " 条提示";
-            FullDetail += Environment.NewLine + string.Join(Environment.NewLine, result.Warnings);
         }
         NotifyState();
     }
@@ -801,7 +927,7 @@ public sealed class JobItem : INotifyPropertyChanged
         _isRunning = false;
         _status = "失败";
         Detail = message;
-        FullDetail = message + Environment.NewLine + SourcePath;
+        FullDetail = message;
         NotifyState();
     }
 
@@ -820,6 +946,7 @@ public sealed class JobItem : INotifyPropertyChanged
         OnPropertyChanged(nameof(IsRunning));
         OnPropertyChanged(nameof(StatusBrush));
         OnPropertyChanged(nameof(CanProcess));
+        OnPropertyChanged(nameof(HasResult));
         OnPropertyChanged(nameof(FullDetail));
     }
 

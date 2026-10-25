@@ -13,71 +13,76 @@
                     <Grid.RowDefinitions><RowDefinition Height="*" /><RowDefinition Height="Auto" /></Grid.RowDefinitions>
                     <Grid Grid.Row="0">
                         <Grid.ColumnDefinitions><ColumnDefinition Width="1.06*" /><ColumnDefinition Width="20" /><ColumnDefinition Width="1*" /></Grid.ColumnDefinitions>
-                        <Border Background="#1D1D1D" BorderBrush="#333333" BorderThickness="1" CornerRadius="12">
-                            <Grid Margin="18">
-                                <Grid.RowDefinitions><RowDefinition Height="Auto" /><RowDefinition Height="*" /><RowDefinition Height="Auto" /></Grid.RowDefinitions>
-                                <Grid Height="34" Margin="0,0,0,14">
-                                    <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
-                                        <TextBlock Text="处理队列" FontSize="14" FontWeight="SemiBold" />
-                                        <Border Background="#303030" CornerRadius="6" Padding="7,2" Margin="9,0,0,0"><TextBlock Text="{Binding JobCount}" FontSize="12" Foreground="#BDBDBD" /></Border>
+                        <Border x:Name="QueuePanel" Background="#1D1D1D" BorderBrush="#333333" BorderThickness="1" CornerRadius="12" MouseLeftButtonUp="QueuePanel_MouseLeftButtonUp">
+                            <Grid>
+                                <Button Click="AddFiles_Click" IsEnabled="{Binding CanEdit}" VerticalAlignment="Stretch" HorizontalAlignment="Stretch" ToolTip="选择多个文件或文件夹，也可直接拖入" AutomationProperties.Name="选择或拖入多个文件和文件夹">
+                                    <Button.Style><Style TargetType="Button" BasedOn="{StaticResource DropZoneButton}"><Setter Property="Visibility" Value="Collapsed" /><Style.Triggers><DataTrigger Binding="{Binding JobCount}" Value="0"><Setter Property="Visibility" Value="Visible" /></DataTrigger></Style.Triggers></Style></Button.Style>
+                                    <StackPanel HorizontalAlignment="Center" VerticalAlignment="Center" IsHitTestVisible="False">
+                                        <Path Data="M3,17 L3,23 L25,23 L25,17 M14,19 L14,3 M8,9 L14,3 L20,9" Width="28" Height="26" Stroke="#C9C9C9" StrokeThickness="1.5" StrokeStartLineCap="Round" StrokeEndLineCap="Round" StrokeLineJoin="Round" HorizontalAlignment="Center" Margin="0,0,0,11" />
+                                        <TextBlock Text="拖入多个壁纸包或文件夹" FontSize="14" HorizontalAlignment="Center" />
+                                        <TextBlock Text="PKG / TEX / ZIP / 壁纸文件夹 / 图片" FontSize="12" Foreground="#8C8C8C" HorizontalAlignment="Center" Margin="0,9,0,0" />
                                     </StackPanel>
-                                    <StackPanel Orientation="Horizontal" HorizontalAlignment="Right">
-                                        <Button Style="{StaticResource IconButton}" Click="AddFiles_Click" IsEnabled="{Binding CanEdit}" ToolTip="添加多个壁纸文件" AutomationProperties.Name="添加多个壁纸文件">
-                                            <Path Data="M2,1 L9,1 L14,6 L14,15 L2,15 Z M9,1 L9,6 L14,6 M8,8 L8,13 M5.5,10.5 L10.5,10.5" Width="17" Height="17" Stroke="{Binding Foreground, RelativeSource={RelativeSource AncestorType=Button}}" StrokeThickness="1.3" StrokeLineJoin="Round" StrokeStartLineCap="Round" StrokeEndLineCap="Round" />
-                                        </Button>
-                                        <Button Style="{StaticResource IconButton}" Click="AddFolder_Click" IsEnabled="{Binding CanEdit}" ToolTip="添加一个或多个壁纸文件夹" AutomationProperties.Name="添加壁纸文件夹" Margin="3,0,0,0">
-                                            <Path Data="M1,3 L6,3 L8,5 L17,5 L17,15 L1,15 Z M1,6 L17,6 M9,8 L9,13 M6.5,10.5 L11.5,10.5" Width="18" Height="17" Stroke="{Binding Foreground, RelativeSource={RelativeSource AncestorType=Button}}" StrokeThickness="1.3" StrokeLineJoin="Round" StrokeStartLineCap="Round" StrokeEndLineCap="Round" />
-                                        </Button>
-                                        <Button Style="{StaticResource IconButton}" Click="Clear_Click" IsEnabled="{Binding CanEdit}" ToolTip="清空处理队列" AutomationProperties.Name="清空队列" Margin="3,0,0,0">
-                                            <Path Data="M2,4 L16,4 M6,4 L6,2 L12,2 L12,4 M4,4 L5,16 L13,16 L14,4 M7,7 L7.5,13 M11,7 L10.5,13" Width="18" Height="18" Stroke="{Binding Foreground, RelativeSource={RelativeSource AncestorType=Button}}" StrokeThickness="1.3" StrokeLineJoin="Round" StrokeStartLineCap="Round" StrokeEndLineCap="Round" />
-                                        </Button>
-                                    </StackPanel>
-                                </Grid>
-                                <Grid Grid.Row="1" MinHeight="90">
-                                    <Button Click="AddFiles_Click" IsEnabled="{Binding CanEdit}" VerticalAlignment="Stretch" HorizontalAlignment="Stretch" ToolTip="点击选择多个壁纸文件，也可直接拖入文件和文件夹" AutomationProperties.Name="选择或拖入多个壁纸文件">
-                                        <Button.Style><Style TargetType="Button" BasedOn="{StaticResource DropZoneButton}"><Setter Property="Visibility" Value="Collapsed" /><Style.Triggers><DataTrigger Binding="{Binding JobCount}" Value="0"><Setter Property="Visibility" Value="Visible" /></DataTrigger></Style.Triggers></Style></Button.Style>
-                                        <StackPanel HorizontalAlignment="Center" VerticalAlignment="Center">
-                                            <Path Data="M3,17 L3,23 L25,23 L25,17 M14,19 L14,3 M8,9 L14,3 L20,9" Width="28" Height="26" Stroke="#C9C9C9" StrokeThickness="1.5" StrokeStartLineCap="Round" StrokeEndLineCap="Round" StrokeLineJoin="Round" HorizontalAlignment="Center" Margin="0,0,0,11" />
-                                            <TextBlock Text="拖入多个壁纸包或文件夹" FontSize="14" HorizontalAlignment="Center" />
-                                            <TextBlock Text="PKG / TEX / ZIP / 壁纸文件夹 / 图片" FontSize="12" Foreground="#8C8C8C" HorizontalAlignment="Center" Margin="0,9,0,0" />
-                                        </StackPanel>
-                                    </Button>
-                                    <ListBox ItemsSource="{Binding Jobs}" SelectedItem="{Binding SelectedJob}" Background="Transparent" BorderThickness="0" ScrollViewer.HorizontalScrollBarVisibility="Disabled" ScrollViewer.VerticalScrollBarVisibility="Auto" AutomationProperties.Name="待处理和已完成任务">
-                                        <ListBox.Style><Style TargetType="ListBox"><Setter Property="Visibility" Value="Visible" /><Style.Triggers><DataTrigger Binding="{Binding JobCount}" Value="0"><Setter Property="Visibility" Value="Collapsed" /></DataTrigger></Style.Triggers></Style></ListBox.Style>
-                                        <ListBox.ItemContainerStyle>
-                                            <Style TargetType="ListBoxItem">
-                                                <Setter Property="Foreground" Value="{StaticResource TextBrush}" />
-                                                <Setter Property="HorizontalContentAlignment" Value="Stretch" /><Setter Property="Padding" Value="0" /><Setter Property="Margin" Value="0,0,0,7" /><Setter Property="BorderThickness" Value="0" />
-                                                <Setter Property="Template"><Setter.Value><ControlTemplate TargetType="ListBoxItem"><Border x:Name="ItemBorder" Background="#242424" BorderBrush="#333333" BorderThickness="1" CornerRadius="8"><ContentPresenter /></Border><ControlTemplate.Triggers><Trigger Property="IsSelected" Value="True"><Setter TargetName="ItemBorder" Property="BorderBrush" Value="#5A5A5A" /><Setter TargetName="ItemBorder" Property="Background" Value="#2B2B2B" /></Trigger><Trigger Property="IsMouseOver" Value="True"><Setter TargetName="ItemBorder" Property="Background" Value="#303030" /></Trigger></ControlTemplate.Triggers></ControlTemplate></Setter.Value></Setter>
-                                            </Style>
-                                        </ListBox.ItemContainerStyle>
-                                        <ListBox.ItemTemplate>
-                                            <DataTemplate>
-                                                <Grid Margin="11,10">
-                                                    <Grid.ColumnDefinitions><ColumnDefinition Width="30" /><ColumnDefinition Width="*" /><ColumnDefinition Width="Auto" /></Grid.ColumnDefinitions>
-                                                    <Path Data="M2,1 L12,1 L17,6 L17,21 L2,21 Z M12,1 L12,6 L17,6 M5,12 L14,12 M5,16 L12,16" Width="20" Height="23" Stroke="#B0B0B0" StrokeThickness="1.2" StrokeLineJoin="Round" VerticalAlignment="Top" Margin="0,2,0,0" />
-                                                    <StackPanel Grid.Column="1" Margin="0,0,9,0">
-                                                        <TextBlock Text="{Binding Name}" FontSize="12" TextTrimming="CharacterEllipsis" ToolTip="{Binding SourcePath}" />
-                                                        <TextBlock Text="{Binding Detail}" FontSize="12" Foreground="#969696" Margin="0,5,0,0" TextTrimming="CharacterEllipsis" ToolTip="{Binding Detail}" />
-                                                        <ProgressBar Value="{Binding Progress}" Minimum="0" Maximum="1" Height="3" Margin="0,9,0,0">
-                                                            <ProgressBar.Style><Style TargetType="ProgressBar" BasedOn="{StaticResource {x:Type ProgressBar}}"><Setter Property="Visibility" Value="Hidden" /><Style.Triggers><DataTrigger Binding="{Binding IsRunning}" Value="True"><Setter Property="Visibility" Value="Visible" /></DataTrigger></Style.Triggers></Style></ProgressBar.Style>
-                                                        </ProgressBar>
-                                                    </StackPanel>
-                                                    <TextBlock Grid.Column="2" Text="{Binding Status}" FontSize="12" Foreground="{Binding StatusBrush}" VerticalAlignment="Top" Margin="0,2,0,0" />
-                                                </Grid>
-                                            </DataTemplate>
-                                        </ListBox.ItemTemplate>
-                                    </ListBox>
-                                </Grid>
-                                <Button Grid.Row="2" Content="移除选中" HorizontalAlignment="Left" Padding="0,8,0,0" FontSize="14" Click="Remove_Click" IsEnabled="{Binding CanEdit}" AutomationProperties.Name="移除选中的任务">
-                                    <Button.Style><Style TargetType="Button" BasedOn="{StaticResource FlatButton}"><Setter Property="Visibility" Value="Visible" /><Style.Triggers><DataTrigger Binding="{Binding JobCount}" Value="0"><Setter Property="Visibility" Value="Collapsed" /></DataTrigger></Style.Triggers></Style></Button.Style>
                                 </Button>
+                                <Grid Margin="18">
+                                    <Grid.RowDefinitions><RowDefinition Height="Auto" /><RowDefinition Height="*" /><RowDefinition Height="Auto" /></Grid.RowDefinitions>
+                                    <Grid Height="34" Margin="0,0,0,14">
+                                        <StackPanel Orientation="Horizontal" VerticalAlignment="Center" IsHitTestVisible="False">
+                                            <TextBlock Text="处理队列" FontSize="14" FontWeight="SemiBold" />
+                                            <Border Background="#303030" CornerRadius="6" Padding="7,2" Margin="9,0,0,0"><TextBlock Text="{Binding JobCount}" FontSize="12" Foreground="#BDBDBD" /></Border>
+                                        </StackPanel>
+                                        <StackPanel Orientation="Horizontal" HorizontalAlignment="Right">
+                                            <Button Style="{StaticResource IconButton}" Click="AddFiles_Click" IsEnabled="{Binding CanEdit}" ToolTip="添加多个文件或文件夹" AutomationProperties.Name="添加多个文件或文件夹">
+                                                <Path Data="M2,1 L9,1 L14,6 L14,15 L2,15 Z M9,1 L9,6 L14,6 M8,8 L8,13 M5.5,10.5 L10.5,10.5" Width="17" Height="17" Stroke="{Binding Foreground, RelativeSource={RelativeSource AncestorType=Button}}" StrokeThickness="1.3" StrokeLineJoin="Round" StrokeStartLineCap="Round" StrokeEndLineCap="Round" />
+                                            </Button>
+                                            <Button Style="{StaticResource IconButton}" Click="AddFolder_Click" IsEnabled="{Binding CanEdit}" ToolTip="添加一个或多个壁纸文件夹" AutomationProperties.Name="添加壁纸文件夹" Margin="3,0,0,0">
+                                                <Path Data="M1,3 L6,3 L8,5 L17,5 L17,15 L1,15 Z M1,6 L17,6 M9,8 L9,13 M6.5,10.5 L11.5,10.5" Width="18" Height="17" Stroke="{Binding Foreground, RelativeSource={RelativeSource AncestorType=Button}}" StrokeThickness="1.3" StrokeLineJoin="Round" StrokeStartLineCap="Round" StrokeEndLineCap="Round" />
+                                            </Button>
+                                            <Button Style="{StaticResource IconButton}" Click="Clear_Click" IsEnabled="{Binding CanEdit}" ToolTip="清空处理队列" AutomationProperties.Name="清空队列" Margin="3,0,0,0">
+                                                <Path Data="M2,4 L16,4 M6,4 L6,2 L12,2 L12,4 M4,4 L5,16 L13,16 L14,4 M7,7 L7.5,13 M11,7 L10.5,13" Width="18" Height="18" Stroke="{Binding Foreground, RelativeSource={RelativeSource AncestorType=Button}}" StrokeThickness="1.3" StrokeLineJoin="Round" StrokeStartLineCap="Round" StrokeEndLineCap="Round" />
+                                            </Button>
+                                        </StackPanel>
+                                    </Grid>
+                                    <Grid Grid.Row="1" MinHeight="90">
+                                        <ListBox ItemsSource="{Binding Jobs}" SelectedItem="{Binding SelectedJob}" Background="Transparent" BorderThickness="0" ScrollViewer.HorizontalScrollBarVisibility="Disabled" ScrollViewer.VerticalScrollBarVisibility="Auto" AutomationProperties.Name="待处理和已完成任务">
+                                            <ListBox.Style><Style TargetType="ListBox"><Setter Property="Visibility" Value="Visible" /><Style.Triggers><DataTrigger Binding="{Binding JobCount}" Value="0"><Setter Property="Visibility" Value="Collapsed" /></DataTrigger></Style.Triggers></Style></ListBox.Style>
+                                            <ListBox.ItemContainerStyle>
+                                                <Style TargetType="ListBoxItem">
+                                                    <Setter Property="Foreground" Value="{StaticResource TextBrush}" />
+                                                    <Setter Property="HorizontalContentAlignment" Value="Stretch" /><Setter Property="Padding" Value="0" /><Setter Property="Margin" Value="0,0,0,7" /><Setter Property="BorderThickness" Value="0" />
+                                                    <Setter Property="Template"><Setter.Value><ControlTemplate TargetType="ListBoxItem"><Border x:Name="ItemBorder" Background="#242424" BorderBrush="#333333" BorderThickness="1" CornerRadius="8"><ContentPresenter /></Border><ControlTemplate.Triggers><Trigger Property="IsSelected" Value="True"><Setter TargetName="ItemBorder" Property="BorderBrush" Value="#5A5A5A" /><Setter TargetName="ItemBorder" Property="Background" Value="#2B2B2B" /></Trigger><Trigger Property="IsMouseOver" Value="True"><Setter TargetName="ItemBorder" Property="Background" Value="#303030" /></Trigger></ControlTemplate.Triggers></ControlTemplate></Setter.Value></Setter>
+                                                </Style>
+                                            </ListBox.ItemContainerStyle>
+                                            <ListBox.ItemTemplate>
+                                                <DataTemplate>
+                                                    <Grid Margin="11,10">
+                                                        <Grid.ColumnDefinitions><ColumnDefinition Width="30" /><ColumnDefinition Width="*" /><ColumnDefinition Width="Auto" /></Grid.ColumnDefinitions>
+                                                        <Path Data="M2,1 L12,1 L17,6 L17,21 L2,21 Z M12,1 L12,6 L17,6 M5,12 L14,12 M5,16 L12,16" Width="20" Height="23" Stroke="#B0B0B0" StrokeThickness="1.2" StrokeLineJoin="Round" VerticalAlignment="Top" Margin="0,2,0,0" />
+                                                        <StackPanel Grid.Column="1" Margin="0,0,9,0">
+                                                            <TextBlock Text="{Binding Name}" FontSize="12" TextTrimming="CharacterEllipsis" ToolTip="{Binding SourcePath}" />
+                                                            <TextBlock Text="{Binding Detail}" FontSize="12" Foreground="#969696" Margin="0,5,0,0" TextTrimming="CharacterEllipsis" ToolTip="{Binding Detail}" />
+                                                            <ProgressBar Value="{Binding Progress}" Minimum="0" Maximum="1" Height="3" Margin="0,9,0,0">
+                                                                <ProgressBar.Style><Style TargetType="ProgressBar" BasedOn="{StaticResource {x:Type ProgressBar}}"><Setter Property="Visibility" Value="Hidden" /><Style.Triggers><DataTrigger Binding="{Binding IsRunning}" Value="True"><Setter Property="Visibility" Value="Visible" /></DataTrigger></Style.Triggers></Style></ProgressBar.Style>
+                                                            </ProgressBar>
+                                                        </StackPanel>
+                                                        <TextBlock Grid.Column="2" Text="{Binding Status}" FontSize="12" Foreground="{Binding StatusBrush}" VerticalAlignment="Top" Margin="0,2,0,0" />
+                                                    </Grid>
+                                                </DataTemplate>
+                                            </ListBox.ItemTemplate>
+                                        </ListBox>
+                                    </Grid>
+                                    <Button Grid.Row="2" Content="移除选中" HorizontalAlignment="Left" Padding="0,8,0,0" FontSize="14" Click="Remove_Click" IsEnabled="{Binding CanEdit}" AutomationProperties.Name="移除选中的任务">
+                                        <Button.Style><Style TargetType="Button" BasedOn="{StaticResource FlatButton}"><Setter Property="Visibility" Value="Visible" /><Style.Triggers><DataTrigger Binding="{Binding JobCount}" Value="0"><Setter Property="Visibility" Value="Collapsed" /></DataTrigger></Style.Triggers></Style></Button.Style>
+                                    </Button>
+                                </Grid>
+                                <Border Background="#F0171717" BorderBrush="#A6A6A6" BorderThickness="2" CornerRadius="12" IsHitTestVisible="False" Visibility="{Binding ShowDropOverlay, Converter={StaticResource BoolVisibility}}">
+                                    <StackPanel HorizontalAlignment="Center" VerticalAlignment="Center"><TextBlock Text="松开，添加到队列" FontSize="24" FontWeight="SemiBold" Foreground="#EEEEEE" /><TextBlock Text="支持多个壁纸包和文件夹" FontSize="13" Foreground="#AAAAAA" HorizontalAlignment="Center" Margin="0,15,0,0" /></StackPanel>
+                                </Border>
                             </Grid>
                         </Border>
                         <Border Grid.Column="2" Background="#1D1D1D" BorderBrush="#333333" BorderThickness="1" CornerRadius="12">
                             <Grid Margin="18">
                                 <Grid.RowDefinitions><RowDefinition Height="Auto" /><RowDefinition Height="*" /></Grid.RowDefinitions>
-                                <Grid Height="34" Margin="0,0,0,14"><TextBlock Text="画面预览" FontSize="14" FontWeight="SemiBold" VerticalAlignment="Center" /><TextBlock Text="静态合成" FontSize="12" Foreground="#8D8D8D" HorizontalAlignment="Right" VerticalAlignment="Center" /></Grid>
+                                <Grid Height="34" Margin="0,0,0,14"><TextBlock Text="画面预览" FontSize="14" FontWeight="SemiBold" VerticalAlignment="Center" /></Grid>
                                 <Grid x:Name="PreviewViewport" Grid.Row="1" SizeChanged="PreviewLayout_SizeChanged">
                                     <ScrollViewer VerticalScrollBarVisibility="Hidden" HorizontalScrollBarVisibility="Disabled" CanContentScroll="False" PanningMode="VerticalOnly" Focusable="False">
                                         <StackPanel>
@@ -87,23 +92,23 @@
                                                         <StackPanel.Style><Style TargetType="StackPanel"><Setter Property="Visibility" Value="Collapsed" /><Style.Triggers><DataTrigger Binding="{Binding PreviewImage}" Value="{x:Null}"><Setter Property="Visibility" Value="Visible" /></DataTrigger></Style.Triggers></Style></StackPanel.Style>
                                                         <Path Data="M2,2 L34,2 L34,28 L2,28 Z M2,22 L12,12 L21,21 L26,16 L34,24 M26,8 L26,9" Width="37" Height="31" Stroke="#585858" StrokeThickness="1.5" StrokeLineJoin="Round" StrokeStartLineCap="Round" StrokeEndLineCap="Round" HorizontalAlignment="Center" Margin="0,0,0,14" />
                                                         <TextBlock Text="{Binding PreviewPlaceholder}" FontSize="12" Foreground="#8C8C8C" HorizontalAlignment="Center" TextAlignment="Center" TextWrapping="Wrap" Margin="15,0" />
-                                                        <TextBlock Text="完成后，原尺寸画面会出现在这里" FontSize="12" Foreground="#8C8C8C" HorizontalAlignment="Center" Margin="0,8,0,0" />
                                                     </StackPanel>
                                                     <Image x:Name="PreviewResultImage" Source="{Binding PreviewImage}" Stretch="Uniform" VerticalAlignment="Top" MaxHeight="140" AutomationProperties.Name="合成结果预览" />
                                             </Grid>
-                                            <StackPanel x:Name="PreviewDetails" Margin="0,14,0,0" SizeChanged="PreviewLayout_SizeChanged">
+                                            <StackPanel x:Name="PreviewDetails" Margin="0,14,0,0" SizeChanged="PreviewLayout_SizeChanged" Visibility="{Binding HasSelectedJob, Converter={StaticResource BoolVisibility}}">
                                                 <TextBlock Text="{Binding PreviewTitle}" FontSize="12" FontWeight="SemiBold" TextTrimming="CharacterEllipsis" />
-                                                <TextBlock Text="{Binding PreviewCaption}" FontSize="12" Foreground="#929292" Margin="0,5,0,0" TextWrapping="Wrap" />
-                                                <ScrollViewer MaxHeight="72" VerticalScrollBarVisibility="Hidden" HorizontalScrollBarVisibility="Disabled" CanContentScroll="False" Focusable="True" KeyboardNavigation.IsTabStop="True" KeyboardNavigation.TabIndex="0" PanningMode="VerticalOnly" Margin="0,9,0,0" AutomationProperties.Name="处理报告，使用滚轮或方向键滚动"><TextBlock Text="{Binding SelectedDetail}" FontSize="12" Foreground="#A5A5A5" TextWrapping="Wrap" LineHeight="18" LineStackingStrategy="BlockLineHeight" /></ScrollViewer>
+                                                <TextBlock Text="{Binding PreviewCaption}" FontSize="12" Foreground="#929292" Margin="0,5,0,0" TextWrapping="Wrap" Visibility="{Binding HasPreviewCaption, Converter={StaticResource BoolVisibility}}" />
+                                                <Button Style="{StaticResource PathButton}" Click="OpenSelectedPath_Click" IsEnabled="{Binding CanOpenSelectedPath}" Margin="0,9,0,0" ToolTip="在资源管理器中打开对应文件夹" AutomationProperties.Name="打开路径所在文件夹"><TextBlock Text="{Binding SelectedPath}" FontSize="12" TextWrapping="Wrap" /></Button>
+                                                <ScrollViewer MaxHeight="72" VerticalScrollBarVisibility="Hidden" HorizontalScrollBarVisibility="Disabled" CanContentScroll="False" Focusable="True" KeyboardNavigation.IsTabStop="True" KeyboardNavigation.TabIndex="0" PanningMode="VerticalOnly" Margin="0,9,0,0" Visibility="{Binding HasSelectedReport, Converter={StaticResource BoolVisibility}}" AutomationProperties.Name="处理报告，使用滚轮或方向键滚动"><TextBlock Text="{Binding SelectedDetail}" FontSize="12" Foreground="#A5A5A5" TextWrapping="Wrap" LineHeight="18" LineStackingStrategy="BlockLineHeight" /></ScrollViewer>
                                             </StackPanel>
-                                            <StackPanel x:Name="PreviewActions" Orientation="Horizontal" Margin="0,10,0,0" SizeChanged="PreviewLayout_SizeChanged">
-                                                <Button Style="{StaticResource IconTextButton}" Click="OpenImage_Click" IsEnabled="{Binding CanOpenImage}" AutomationProperties.Name="打开选中的合成图片">
+                                            <StackPanel x:Name="PreviewActions" Orientation="Horizontal" Margin="0,10,0,0" SizeChanged="PreviewLayout_SizeChanged" Visibility="{Binding HasResultActions, Converter={StaticResource BoolVisibility}}">
+                                                <Button Style="{StaticResource IconTextButton}" Click="OpenImage_Click" IsEnabled="{Binding CanOpenImage}" Visibility="{Binding CanOpenImage, Converter={StaticResource BoolVisibility}}" AutomationProperties.Name="打开选中的合成图片">
                                                     <StackPanel Orientation="Horizontal">
                                                         <Path Data="M2,2 L15,2 L15,15 L2,15 Z M2,12 L6,8 L10,12 L12,10 L15,13 M11,6 L11,6.5" Width="17" Height="17" Stroke="{Binding Foreground, RelativeSource={RelativeSource AncestorType=Button}}" StrokeThickness="1.3" StrokeLineJoin="Round" VerticalAlignment="Center" Margin="0,0,8,0" />
                                                         <TextBlock Text="打开图片" VerticalAlignment="Center" />
                                                     </StackPanel>
                                                 </Button>
-                                                <Button Style="{StaticResource IconTextButton}" Click="OpenResult_Click" IsEnabled="{Binding CanOpenResult}" Margin="6,0,0,0" AutomationProperties.Name="打开选中任务的输出文件夹">
+                                                <Button Style="{StaticResource IconTextButton}" Click="OpenResult_Click" IsEnabled="{Binding CanOpenResult}" Visibility="{Binding CanOpenResult, Converter={StaticResource BoolVisibility}}" Margin="6,0,0,0" AutomationProperties.Name="打开选中任务的输出文件夹">
                                                     <StackPanel Orientation="Horizontal">
                                                         <Path Data="M1,3 L6,3 L8,5 L17,5 L17,15 L1,15 Z M1,6 L17,6" Width="18" Height="17" Stroke="{Binding Foreground, RelativeSource={RelativeSource AncestorType=Button}}" StrokeThickness="1.3" StrokeLineJoin="Round" VerticalAlignment="Center" Margin="0,0,8,0" />
                                                         <TextBlock Text="查看文件夹" VerticalAlignment="Center" />
@@ -119,7 +124,6 @@
                     <Grid Grid.Row="1" Margin="0,16,0,0">
                         <Grid.ColumnDefinitions><ColumnDefinition Width="*" /><ColumnDefinition Width="Auto" /><ColumnDefinition Width="Auto" /><ColumnDefinition Width="Auto" /></Grid.ColumnDefinitions>
                         <StackPanel Grid.Column="1" Orientation="Horizontal" Margin="0,0,14,0">
-                            <TextBlock Text="保存到" FontSize="12" Foreground="#B3B3B3" VerticalAlignment="Center" Margin="0,0,12,0" />
                             <Border Width="400" Height="46" Background="#1E1E1E" CornerRadius="8" BorderThickness="1" VerticalAlignment="Center">
                                 <Border.Style><Style TargetType="Border"><Setter Property="BorderBrush" Value="#3A3A3A" /><Style.Triggers><Trigger Property="IsKeyboardFocusWithin" Value="True"><Setter Property="BorderBrush" Value="#808080" /></Trigger></Style.Triggers></Style></Border.Style>
                                 <Grid Margin="3">
@@ -136,9 +140,6 @@
                     </Grid>
                 </Grid>
             </Grid>
-            <Border Background="#F0171717" BorderBrush="#A6A6A6" BorderThickness="2" CornerRadius="10" Margin="9" IsHitTestVisible="False" Visibility="{Binding ShowDropOverlay, Converter={StaticResource BoolVisibility}}">
-                <StackPanel HorizontalAlignment="Center" VerticalAlignment="Center"><TextBlock Text="松开，添加到队列" FontSize="27" FontWeight="SemiBold" Foreground="#EEEEEE" /><TextBlock Text="支持多个壁纸包和文件夹" FontSize="13" Foreground="#AAAAAA" HorizontalAlignment="Center" Margin="0,15,0,0" /></StackPanel>
-            </Border>
         </Grid>
     </Border>
 </Window>
