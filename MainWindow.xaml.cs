@@ -264,6 +264,13 @@ public partial class MainWindow : Window, INotifyPropertyChanged
         return (length / 1024.0).ToString("0") + " KB";
     }
 
+    private void PreviewLayout_SizeChanged(object sender, SizeChangedEventArgs e)
+    {
+        double detailHeight = PreviewDetails.ActualHeight + PreviewDetails.Margin.Top;
+        double actionHeight = PreviewActions.ActualHeight + PreviewActions.Margin.Top;
+        PreviewResultImage.MaxHeight = Math.Max(140, PreviewViewport.ActualHeight - detailHeight - actionHeight);
+    }
+
     internal async Task AddInputsAsync(IEnumerable<string> paths)
     {
         if (!CanEdit)
@@ -744,13 +751,13 @@ public sealed class JobItem : INotifyPropertyChanged
             }
             if (_status == "已合成" || _status == "已提取" || _status == "已完成")
             {
-                return new SolidColorBrush(Color.FromRgb(178, 202, 156));
+                return new SolidColorBrush(Color.FromRgb(208, 208, 208));
             }
             if (_isRunning)
             {
-                return new SolidColorBrush(Color.FromRgb(221, 221, 206));
+                return new SolidColorBrush(Color.FromRgb(238, 238, 238));
             }
-            return new SolidColorBrush(Color.FromRgb(143, 143, 134));
+            return new SolidColorBrush(Color.FromRgb(143, 143, 143));
         }
     }
 

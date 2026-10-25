@@ -7,14 +7,14 @@
         <SolidColorBrush x:Key="WindowBrush" Color="#171717" />
         <SolidColorBrush x:Key="PanelBrush" Color="#1E1E1E" />
         <SolidColorBrush x:Key="LineBrush" Color="#333333" />
-        <SolidColorBrush x:Key="TextBrush" Color="#EEEEEC" />
-        <SolidColorBrush x:Key="MutedBrush" Color="#A0A09A" />
+        <SolidColorBrush x:Key="TextBrush" Color="#EEEEEE" />
+        <SolidColorBrush x:Key="MutedBrush" Color="#A0A0A0" />
         <Style TargetType="TextBlock">
             <Setter Property="FontFamily" Value="Segoe UI, Microsoft YaHei UI" />
         </Style>
         <Style TargetType="ToolTip">
             <Setter Property="Background" Value="#292929" />
-            <Setter Property="Foreground" Value="#EEEEEC" />
+            <Setter Property="Foreground" Value="#EEEEEE" />
             <Setter Property="BorderBrush" Value="#484848" />
             <Setter Property="Padding" Value="10,6" />
             <Setter Property="MaxWidth" Value="540" />
@@ -23,7 +23,7 @@
             <Setter Property="Template">
                 <Setter.Value>
                     <ControlTemplate TargetType="Control">
-                        <Border Margin="2" BorderBrush="#98A78A" BorderThickness="1" CornerRadius="6" IsHitTestVisible="False">
+                        <Border Margin="2" BorderBrush="#909090" BorderThickness="1" CornerRadius="6" IsHitTestVisible="False">
                             <Border.Style><Style TargetType="Border"><Style.Triggers><DataTrigger Binding="{Binding IsActive, RelativeSource={RelativeSource AncestorType=Window}}" Value="False"><Setter Property="Visibility" Value="Collapsed" /></DataTrigger></Style.Triggers></Style></Border.Style>
                         </Border>
                     </ControlTemplate>
@@ -32,7 +32,7 @@
         </Style>
         <Style TargetType="Button">
             <Setter Property="Background" Value="#272727" />
-            <Setter Property="Foreground" Value="#E8E8E5" />
+            <Setter Property="Foreground" Value="#E8E8E8" />
             <Setter Property="BorderBrush" Value="#3A3A3A" />
             <Setter Property="BorderThickness" Value="1" />
             <Setter Property="Padding" Value="14,9" />
@@ -58,15 +58,15 @@
             </Setter>
         </Style>
         <Style x:Key="PrimaryButton" TargetType="Button" BasedOn="{StaticResource {x:Type Button}}">
-            <Setter Property="Background" Value="#E9E9E3" />
+            <Setter Property="Background" Value="#F0F0F0" />
             <Setter Property="Foreground" Value="#191919" />
-            <Setter Property="BorderBrush" Value="#E9E9E3" />
+            <Setter Property="BorderBrush" Value="#F0F0F0" />
             <Setter Property="FontWeight" Value="SemiBold" />
         </Style>
         <Style x:Key="FlatButton" TargetType="Button" BasedOn="{StaticResource {x:Type Button}}">
             <Setter Property="Background" Value="Transparent" />
             <Setter Property="BorderThickness" Value="0" />
-            <Setter Property="Foreground" Value="#A6A6A0" />
+            <Setter Property="Foreground" Value="#A6A6A6" />
             <Setter Property="Padding" Value="8,6" />
         </Style>
         <Style x:Key="IconButton" TargetType="Button" BasedOn="{StaticResource {x:Type Button}}">
@@ -74,7 +74,7 @@
             <Setter Property="Height" Value="34" />
             <Setter Property="Padding" Value="7" />
             <Setter Property="Background" Value="Transparent" />
-            <Setter Property="Foreground" Value="#A6A6A0" />
+            <Setter Property="Foreground" Value="#A6A6A6" />
             <Setter Property="BorderBrush" Value="Transparent" />
             <Setter Property="BorderThickness" Value="1" />
             <Setter Property="ToolTipService.InitialShowDelay" Value="300" />
@@ -92,14 +92,14 @@
                                     <Condition Binding="{Binding IsActive, RelativeSource={RelativeSource AncestorType=Window}}" Value="True" />
                                 </MultiDataTrigger.Conditions>
                                 <Setter Property="Background" Value="#323232" />
-                                <Setter Property="Foreground" Value="#F0F0E9" />
+                                <Setter Property="Foreground" Value="#F0F0F0" />
                             </MultiDataTrigger>
                             <MultiDataTrigger>
                                 <MultiDataTrigger.Conditions>
                                     <Condition Binding="{Binding IsPressed, RelativeSource={RelativeSource Self}}" Value="True" />
                                     <Condition Binding="{Binding IsActive, RelativeSource={RelativeSource AncestorType=Window}}" Value="True" />
                                 </MultiDataTrigger.Conditions>
-                                <Setter Property="Background" Value="#41413D" />
+                                <Setter Property="Background" Value="#414141" />
                                 <Setter Property="Foreground" Value="#FFFFFF" />
                             </MultiDataTrigger>
                             <Trigger Property="IsEnabled" Value="False">
@@ -116,18 +116,19 @@
             <Setter Property="MinHeight" Value="36" />
             <Setter Property="Padding" Value="10,8" />
             <Setter Property="FontSize" Value="14" />
-            <Setter Property="Foreground" Value="#C5C5BE" />
+            <Setter Property="Foreground" Value="#C5C5C5" />
         </Style>
         <Style x:Key="DropZoneButton" TargetType="Button" BasedOn="{StaticResource {x:Type Button}}">
             <Setter Property="Padding" Value="18,30" />
-            <Setter Property="Background" Value="#22231F" />
-            <Setter Property="BorderBrush" Value="#4B4D46" />
+            <Setter Property="Background" Value="Transparent" />
+            <Setter Property="BorderBrush" Value="Transparent" />
+            <Setter Property="BorderThickness" Value="0" />
             <Setter Property="HorizontalContentAlignment" Value="Stretch" />
             <Setter Property="VerticalContentAlignment" Value="Stretch" />
             <Setter Property="Template">
                 <Setter.Value>
                     <ControlTemplate TargetType="Button">
-                        <Border x:Name="DropBorder" Background="{TemplateBinding Background}" BorderBrush="{TemplateBinding BorderBrush}" BorderThickness="1" CornerRadius="9" Padding="{TemplateBinding Padding}">
+                        <Border x:Name="DropBorder" Background="{TemplateBinding Background}" BorderBrush="{TemplateBinding BorderBrush}" BorderThickness="{TemplateBinding BorderThickness}" CornerRadius="9" Padding="{TemplateBinding Padding}">
                             <ContentPresenter HorizontalAlignment="Stretch" VerticalAlignment="Stretch" />
                         </Border>
                         <ControlTemplate.Triggers>
@@ -136,8 +137,7 @@
                                     <Condition Binding="{Binding IsMouseOver, RelativeSource={RelativeSource Self}}" Value="True" />
                                     <Condition Binding="{Binding IsActive, RelativeSource={RelativeSource AncestorType=Window}}" Value="True" />
                                 </MultiDataTrigger.Conditions>
-                                <Setter TargetName="DropBorder" Property="Background" Value="#282C24" />
-                                <Setter TargetName="DropBorder" Property="BorderBrush" Value="#79896B" />
+                                <Setter TargetName="DropBorder" Property="Background" Value="#222222" />
                             </MultiDataTrigger>
                             <Trigger Property="IsEnabled" Value="False"><Setter TargetName="DropBorder" Property="Opacity" Value="0.4" /></Trigger>
                         </ControlTemplate.Triggers>
@@ -146,11 +146,11 @@
             </Setter>
         </Style>
         <Style TargetType="TextBox">
-            <Setter Property="Foreground" Value="#E8E8E5" />
+            <Setter Property="Foreground" Value="#E8E8E8" />
             <Setter Property="Background" Value="#181818" />
             <Setter Property="BorderBrush" Value="#3A3A3A" />
-            <Setter Property="CaretBrush" Value="#E8E8E5" />
-            <Setter Property="SelectionBrush" Value="#56604C" />
+            <Setter Property="CaretBrush" Value="#E8E8E8" />
+            <Setter Property="SelectionBrush" Value="#4A4A4A" />
             <Setter Property="Padding" Value="9,8" />
             <Setter Property="FontFamily" Value="Segoe UI, Microsoft YaHei UI" />
             <Setter Property="FontSize" Value="12" />
@@ -162,7 +162,7 @@
         </Style>
         <Style TargetType="ProgressBar">
             <Setter Property="Height" Value="3" />
-            <Setter Property="Foreground" Value="#C4CFB8" />
+            <Setter Property="Foreground" Value="#C8C8C8" />
             <Setter Property="Background" Value="#353535" />
             <Setter Property="BorderThickness" Value="0" />
         </Style>
