@@ -1,0 +1,823 @@
+using System;
+using System.Collections.Generic;
+using System.Collections.ObjectModel;
+using System.ComponentModel;
+using System.Diagnostics;
+using System.IO;
+using System.Linq;
+using System.Runtime.CompilerServices;
+using System.Runtime.InteropServices;
+using System.Text.Json;
+using System.Threading;
+using System.Threading.Tasks;
+using System.Windows;
+using System.Windows.Interop;
+using System.Windows.Media;
+using System.Windows.Media.Imaging;
+using Microsoft.Win32;
+using WpeRemix.Core;
+
+namespace WpeRemix;
+
+public partial class MainWindow : Window, INotifyPropertyChanged
+{
+    private readonly IWallpaperProcessor _processor;
+    private readonly string _defaultOutputDirectory;
+    private CancellationTokenSource? _cancellation;
+    private JobItem? _selectedJob;
+    private bool _isBusy;
+    private bool _isAdding;
+    private bool _showDropOverlay;
+    private bool _cancelRequested;
+    private bool _closeWhenIdle;
+    private string _outputDirectory;
+    private bool _isOutputDirectoryCustom;
+    private BitmapSource? _previewImage;
+    private string _previewCaption = "选择任务查看详情";
+
+    public MainWindow()
+    {
+        _processor = new WallpaperProcessor(new SceneComposer());
+        _defaultOutputDirectory = KnownFolders.Downloads;
+        _outputDirectory = _defaultOutputDirectory;
+        LoadSettings();
+        InitializeComponent();
+        DataContext = this;
+        Jobs.CollectionChanged += (_, _) => RefreshQueueState();
+        PreviewDragLeave += (_, _) => ShowDropOverlay = false;
+    }
+
+    protected override void OnSourceInitialized(EventArgs e)
+    {
+        base.OnSourceInitialized(e);
+        if (!SystemParameters.HighContrast)
+        {
+            int enabled = 1;
+            DwmSetWindowAttribute(new WindowInteropHelper(this).Handle, 20, ref enabled, sizeof(int));
+        }
+    }
+
+    [DllImport("dwmapi.dll")]
+    private static extern int DwmSetWindowAttribute(IntPtr window, int attribute, ref int value, int size);
+
+    public event PropertyChangedEventHandler? PropertyChanged;
+
+    public ObservableCollection<JobItem> Jobs { get; } = new ObservableCollection<JobItem>();
+    public int JobCount => Jobs.Count;
+    public bool IsBusy => _isBusy;
+    public bool CanEdit => !_isBusy && !_isAdding;
+    public bool CanCancel => _isBusy && !_cancelRequested;
+    public bool CanStart => CanEdit && Jobs.Any(job => job.CanProcess) && !string.IsNullOrWhiteSpace(OutputDirectory);
+    public bool CanOpenImage => SelectedJob != null && !string.IsNullOrWhiteSpace(SelectedJob.ResultImage) && File.Exists(SelectedJob.ResultImage);
+    public bool CanOpenResult => SelectedJob != null && !string.IsNullOrWhiteSpace(SelectedJob.OutputDirectory) && Directory.Exists(SelectedJob.OutputDirectory);
+    public string StartLabel
+    {
+        get
+        {
+            if (_isAdding)
+            {
+                return "正在读取…";
+            }
+            if (_cancelRequested && _isBusy)
+            {
+                return "正在取消…";
+            }
+            if (_isBusy)
+            {
+                return "正在处理…";
+            }
+            int count = Jobs.Count(job => job.CanProcess);
+            if (count == 0)
+            {
+                return "开始处理";
+            }
+            return "开始处理  ·  " + count;
+        }
+    }
+
+    public JobItem? SelectedJob
+    {
+        get => _selectedJob;
+        set
+        {
+            if (_selectedJob == value)
+            {
+                return;
+            }
+            _selectedJob = value;
+            OnPropertyChanged();
+            RefreshPreview();
+        }
+    }
+
+    public string OutputDirectory
+    {
+        get => _outputDirectory;
+        set
+        {
+            if (string.Equals(_outputDirectory, value, StringComparison.Ordinal))
+            {
+                return;
+            }
+            _outputDirectory = value;
+            _isOutputDirectoryCustom = !SameDirectory(value, _defaultOutputDirectory);
+            OnPropertyChanged();
+            OnPropertyChanged(nameof(CanStart));
+        }
+    }
+
+    public bool ShowDropOverlay
+    {
+        get => _showDropOverlay;
+        set
+        {
+            _showDropOverlay = value;
+            OnPropertyChanged();
+        }
+    }
+
+    public BitmapSource? PreviewImage
+    {
+        get => _previewImage;
+        private set
+        {
+            _previewImage = value;
+            OnPropertyChanged();
+        }
+    }
+
+    public string PreviewCaption
+    {
+        get => _previewCaption;
+        private set
+        {
+            _previewCaption = value;
+            OnPropertyChanged();
+        }
+    }
+
+    public string PreviewTitle
+    {
+        get
+        {
+            if (SelectedJob == null)
+            {
+                return "等待你的下一张收藏";
+            }
+            return SelectedJob.Name;
+        }
+    }
+
+    public string PreviewPlaceholder
+    {
+        get
+        {
+            if (SelectedJob == null)
+            {
+                return "一张好画面，值得留下";
+            }
+            if (SelectedJob.Status == "已提取")
+            {
+                return "素材已提取";
+            }
+            if (SelectedJob.Status == "失败")
+            {
+                return "这张壁纸暂未处理成功";
+            }
+            return "等待合成画面";
+        }
+    }
+
+    public string SelectedDetail
+    {
+        get
+        {
+            if (SelectedJob == null)
+            {
+                return "静态合成保留原始图层；脚本、粒子和实时文字不会写入图片";
+            }
+            return SelectedJob.FullDetail;
+        }
+    }
+
+    private void OnPropertyChanged([CallerMemberName] string? name = null)
+    {
+        PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(name));
+    }
+
+    private void RefreshQueueState()
+    {
+        OnPropertyChanged(nameof(JobCount));
+        OnPropertyChanged(nameof(CanStart));
+        OnPropertyChanged(nameof(StartLabel));
+        OnPropertyChanged(nameof(CanEdit));
+        OnPropertyChanged(nameof(IsBusy));
+        OnPropertyChanged(nameof(CanCancel));
+    }
+
+    private void RefreshPreview()
+    {
+        PreviewImage = null;
+        PreviewCaption = "选择任务查看详情";
+        if (SelectedJob != null)
+        {
+            PreviewCaption = SelectedJob.SourcePath;
+            if (CanOpenImage)
+            {
+                try
+                {
+                    using (FileStream stream = File.OpenRead(SelectedJob.ResultImage!))
+                    {
+                        BitmapDecoder decoder = BitmapDecoder.Create(stream, BitmapCreateOptions.DelayCreation, BitmapCacheOption.None);
+                        int width = decoder.Frames[0].PixelWidth;
+                        int height = decoder.Frames[0].PixelHeight;
+                        PreviewCaption = width + " × " + height + "  ·  PNG  ·  " + FormatSize(new FileInfo(SelectedJob.ResultImage!).Length);
+                    }
+                    BitmapImage image = new BitmapImage();
+                    image.BeginInit();
+                    image.CacheOption = BitmapCacheOption.OnLoad;
+                    image.DecodePixelWidth = 1200;
+                    image.UriSource = new Uri(SelectedJob.ResultImage!, UriKind.Absolute);
+                    image.EndInit();
+                    image.Freeze();
+                    PreviewImage = image;
+                }
+                catch (Exception exception) when (exception is IOException || exception is NotSupportedException || exception is ArgumentException || exception is FileFormatException || exception is COMException)
+                {
+                    PreviewCaption = "预览不可用，可在文件夹中查看图片";
+                }
+            }
+        }
+        OnPropertyChanged(nameof(PreviewTitle));
+        OnPropertyChanged(nameof(PreviewPlaceholder));
+        OnPropertyChanged(nameof(SelectedDetail));
+        OnPropertyChanged(nameof(CanOpenImage));
+        OnPropertyChanged(nameof(CanOpenResult));
+    }
+
+    private static string FormatSize(long length)
+    {
+        if (length >= 1024 * 1024)
+        {
+            return (length / 1024.0 / 1024.0).ToString("0.0") + " MB";
+        }
+        return (length / 1024.0).ToString("0") + " KB";
+    }
+
+    internal async Task AddInputsAsync(IEnumerable<string> paths)
+    {
+        if (!CanEdit)
+        {
+            return;
+        }
+        _isAdding = true;
+        RefreshQueueState();
+        try
+        {
+            string[] candidates = paths.ToArray();
+            foreach (string candidate in candidates)
+            {
+                try
+                {
+                    IReadOnlyList<string> discovered = await Task.Run(() => InputDiscovery.Discover(new[] { candidate }));
+                    if (discovered.Count == 0)
+                    {
+                        throw new InvalidDataException("没有找到支持的壁纸资源");
+                    }
+                    foreach (string path in discovered)
+                    {
+                        string fullPath = Path.GetFullPath(path);
+                        if (Jobs.Any(job => string.Equals(job.SourcePath, fullPath, StringComparison.OrdinalIgnoreCase)))
+                        {
+                            continue;
+                        }
+                        JobItem item = new JobItem(fullPath, ReadDisplayName(fullPath));
+                        Jobs.Add(item);
+                    }
+                }
+                catch (Exception exception)
+                {
+                    var item = new JobItem(candidate, candidate);
+                    item.Fail("添加失败：" + exception.Message);
+                    Jobs.Add(item);
+                }
+            }
+            if (SelectedJob == null && Jobs.Count > 0)
+            {
+                SelectedJob = Jobs[0];
+            }
+        }
+        finally
+        {
+            _isAdding = false;
+            RefreshQueueState();
+            CloseIfRequested();
+        }
+    }
+
+    private static string ReadDisplayName(string path)
+    {
+        try
+        {
+            string? directory = Path.GetDirectoryName(path);
+            if (Directory.Exists(path))
+            {
+                directory = path;
+            }
+            if (directory != null)
+            {
+                string metadataPath = Path.Combine(directory, "project.json");
+                if (File.Exists(metadataPath) && new FileInfo(metadataPath).Length < 1024 * 1024)
+                {
+                    using JsonDocument metadata = JsonDocument.Parse(File.ReadAllText(metadataPath));
+                    if (metadata.RootElement.TryGetProperty("title", out JsonElement title) && title.ValueKind == JsonValueKind.String)
+                    {
+                        string? text = title.GetString();
+                        if (!string.IsNullOrWhiteSpace(text))
+                        {
+                            return text;
+                        }
+                    }
+                }
+            }
+        }
+        catch (Exception exception) when (exception is IOException || exception is UnauthorizedAccessException || exception is JsonException)
+        {
+            // Missing or invalid metadata must not prevent importing the resource.
+        }
+        return Path.GetFileName(path.TrimEnd(Path.DirectorySeparatorChar));
+    }
+
+    private async void AddFiles_Click(object sender, RoutedEventArgs e)
+    {
+        OpenFileDialog dialog = new OpenFileDialog
+        {
+            Title = "添加 Wallpaper Engine 资源",
+            InitialDirectory = WallpaperLocations.InputDirectory,
+            Multiselect = true,
+            Filter = "支持的资源|*.pkg;*.tex;*.zip;*.png;*.jpg;*.jpeg;*.bmp;*.gif;*.tif;*.tiff|壁纸资源包|*.pkg;*.zip|纹理|*.tex|图片|*.png;*.jpg;*.jpeg;*.bmp;*.gif;*.tif;*.tiff|所有文件|*.*"
+        };
+        if (dialog.ShowDialog(this) == true)
+        {
+            await AddInputsAsync(dialog.FileNames);
+        }
+    }
+
+    private async void AddFolder_Click(object sender, RoutedEventArgs e)
+    {
+        OpenFolderDialog dialog = new OpenFolderDialog
+        {
+            Title = "选择一个或多个壁纸文件夹",
+            InitialDirectory = WallpaperLocations.InputDirectory,
+            Multiselect = true
+        };
+        if (dialog.ShowDialog(this) == true)
+        {
+            await AddInputsAsync(dialog.FolderNames);
+        }
+    }
+
+    private void ChooseOutput_Click(object sender, RoutedEventArgs e)
+    {
+        OpenFolderDialog dialog = new OpenFolderDialog { Title = "选择输出文件夹" };
+        if (Directory.Exists(OutputDirectory))
+        {
+            dialog.InitialDirectory = OutputDirectory;
+        }
+        if (dialog.ShowDialog(this) == true)
+        {
+            OutputDirectory = dialog.FolderName;
+            SaveSettings();
+        }
+    }
+
+    private void Window_DragOver(object sender, DragEventArgs e)
+    {
+        ShowDropOverlay = CanEdit && e.Data.GetDataPresent(DataFormats.FileDrop);
+        if (ShowDropOverlay)
+        {
+            e.Effects = DragDropEffects.Copy;
+        }
+        else
+        {
+            e.Effects = DragDropEffects.None;
+        }
+        e.Handled = true;
+    }
+
+    private async void Window_Drop(object sender, DragEventArgs e)
+    {
+        ShowDropOverlay = false;
+        e.Handled = true;
+        if (e.Data.GetData(DataFormats.FileDrop) is string[] paths)
+        {
+            await AddInputsAsync(paths);
+        }
+    }
+
+    private void Clear_Click(object sender, RoutedEventArgs e)
+    {
+        if (CanEdit)
+        {
+            SelectedJob = null;
+            Jobs.Clear();
+        }
+    }
+
+    private void Remove_Click(object sender, RoutedEventArgs e)
+    {
+        if (CanEdit && SelectedJob != null)
+        {
+            JobItem removed = SelectedJob;
+            SelectedJob = null;
+            Jobs.Remove(removed);
+            if (Jobs.Count > 0)
+            {
+                SelectedJob = Jobs[0];
+            }
+        }
+    }
+
+    private async void Start_Click(object sender, RoutedEventArgs e)
+    {
+        if (!CanStart)
+        {
+            return;
+        }
+        string outputPath;
+        try
+        {
+            outputPath = Path.GetFullPath(OutputDirectory.Trim());
+            Directory.CreateDirectory(outputPath);
+        }
+        catch (Exception exception)
+        {
+            foreach (JobItem job in Jobs.Where(item => item.CanProcess))
+            {
+                job.Fail("输出目录不可用：" + exception.Message);
+            }
+            RefreshPreview();
+            RefreshQueueState();
+            return;
+        }
+        OutputDirectory = outputPath;
+        SaveSettings();
+        JobItem[] batch = Jobs.Where(job => job.CanProcess).ToArray();
+        ExportOptions options = new ExportOptions(outputPath, ExportMode.CompositeAndExtract);
+        _isBusy = true;
+        _cancelRequested = false;
+        _cancellation = new CancellationTokenSource();
+        RefreshQueueState();
+        try
+        {
+            for (int index = 0; index < batch.Length; index++)
+            {
+                if (_cancellation.IsCancellationRequested)
+                {
+                    break;
+                }
+                JobItem job = batch[index];
+                SelectedJob = job;
+                job.Begin();
+                Progress<ExportProgress> progress = new Progress<ExportProgress>(update =>
+                {
+                    if (!job.IsRunning)
+                    {
+                        return;
+                    }
+                    job.Progress = update.Fraction;
+                    job.Detail = update.Stage;
+                });
+                try
+                {
+                    ExportResult result = await _processor.ProcessAsync(job.SourcePath, options, progress, _cancellation.Token);
+                    job.Complete(result);
+                }
+                catch (OperationCanceledException)
+                {
+                    job.Cancel();
+                    break;
+                }
+                catch (Exception exception)
+                {
+                    job.Fail(exception.Message);
+                }
+                if (SelectedJob == job)
+                {
+                    RefreshPreview();
+                }
+            }
+        }
+        finally
+        {
+            _isBusy = false;
+            _cancellation.Dispose();
+            _cancellation = null;
+            RefreshQueueState();
+            RefreshPreview();
+            CloseIfRequested();
+        }
+    }
+
+    private void Cancel_Click(object sender, RoutedEventArgs e)
+    {
+        if (_cancellation != null)
+        {
+            _cancelRequested = true;
+            _cancellation.Cancel();
+            OnPropertyChanged(nameof(CanCancel));
+            OnPropertyChanged(nameof(StartLabel));
+        }
+    }
+
+    internal void ShowExportResult(ExportResult result)
+    {
+        var item = new JobItem(result.OutputDirectory, Path.GetFileName(result.OutputDirectory));
+        item.Complete(result);
+        Jobs.Add(item);
+        SelectedJob = item;
+    }
+
+    private void OpenImage_Click(object sender, RoutedEventArgs e)
+    {
+        if (CanOpenImage && SelectedJob != null)
+        {
+            OpenPath(SelectedJob.ResultImage!);
+        }
+    }
+
+    private void OpenResult_Click(object sender, RoutedEventArgs e)
+    {
+        if (CanOpenResult && SelectedJob != null)
+        {
+            OpenPath(SelectedJob.OutputDirectory!);
+        }
+    }
+
+    private void OpenPath(string path)
+    {
+        try
+        {
+            Process.Start(new ProcessStartInfo(path) { UseShellExecute = true });
+        }
+        catch (Exception exception)
+        {
+            MessageBox.Show(this, "无法打开：" + exception.Message, "WpeRemix", MessageBoxButton.OK, MessageBoxImage.Error);
+        }
+    }
+
+    private void Window_Closing(object? sender, CancelEventArgs e)
+    {
+        if (!IsLoaded)
+        {
+            return;
+        }
+        if (_isBusy || _isAdding)
+        {
+            e.Cancel = true;
+            _closeWhenIdle = true;
+            if (_cancellation != null)
+            {
+                Cancel_Click(this, new RoutedEventArgs());
+            }
+            return;
+        }
+        SaveSettings();
+    }
+
+    private void CloseIfRequested()
+    {
+        if (_closeWhenIdle && !_isBusy && !_isAdding)
+        {
+            Close();
+        }
+    }
+
+    private static string SettingsPath => Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "WpeRemix", "settings.json");
+
+    private void LoadSettings()
+    {
+        try
+        {
+            string pathToRead = SettingsPath;
+            if (!File.Exists(pathToRead))
+            {
+                pathToRead = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "Werip", "settings.json");
+            }
+            if (!File.Exists(pathToRead))
+            {
+                pathToRead = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "WPE Rip", "settings.json");
+            }
+            if (!File.Exists(pathToRead))
+            {
+                return;
+            }
+            if (new FileInfo(pathToRead).Length > 65536)
+            {
+                return;
+            }
+            using JsonDocument document = JsonDocument.Parse(File.ReadAllText(pathToRead));
+            if (document.RootElement.TryGetProperty("OutputDirectory", out JsonElement path))
+            {
+                string? savedPath = path.GetString();
+                if (!string.IsNullOrWhiteSpace(savedPath) && Path.IsPathFullyQualified(savedPath))
+                {
+                    int version = 1;
+                    if (document.RootElement.TryGetProperty("SettingsVersion", out JsonElement savedVersion))
+                    {
+                        savedVersion.TryGetInt32(out version);
+                    }
+                    if (version >= 2)
+                    {
+                        if (!document.RootElement.TryGetProperty("IsOutputDirectoryCustom", out JsonElement custom) || custom.ValueKind != JsonValueKind.True)
+                        {
+                            return;
+                        }
+                    }
+                    else
+                    {
+                        string legacyDefault = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.MyPictures), "WPE Rip");
+                        string renamedDefault = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.MyPictures), "Werip");
+                        if (SameDirectory(savedPath, legacyDefault) || SameDirectory(savedPath, renamedDefault))
+                        {
+                            return;
+                        }
+                    }
+                    _outputDirectory = savedPath;
+                    _isOutputDirectoryCustom = !SameDirectory(savedPath, _defaultOutputDirectory);
+                }
+            }
+        }
+        catch (Exception exception) when (exception is IOException || exception is UnauthorizedAccessException || exception is JsonException || exception is InvalidOperationException)
+        {
+            // A damaged settings file does not prevent launching the application.
+        }
+    }
+
+    private void SaveSettings()
+    {
+        try
+        {
+            string? directory = Path.GetDirectoryName(SettingsPath);
+            if (directory != null)
+            {
+                Directory.CreateDirectory(directory);
+                string content = JsonSerializer.Serialize(new SavedSettings(OutputDirectory, 2, _isOutputDirectoryCustom), new JsonSerializerOptions { WriteIndented = true });
+                string temporaryPath = SettingsPath + ".tmp";
+                File.WriteAllText(temporaryPath, content);
+                File.Move(temporaryPath, SettingsPath, true);
+            }
+        }
+        catch (Exception exception) when (exception is IOException || exception is UnauthorizedAccessException)
+        {
+            MessageBox.Show(this, "输出路径已应用，但无法保存偏好设置：" + exception.Message, "WpeRemix", MessageBoxButton.OK, MessageBoxImage.Warning);
+        }
+    }
+
+    private static bool SameDirectory(string first, string second)
+    {
+        try
+        {
+            return Path.GetFullPath(first).TrimEnd(Path.DirectorySeparatorChar).Equals(Path.GetFullPath(second).TrimEnd(Path.DirectorySeparatorChar), StringComparison.OrdinalIgnoreCase);
+        }
+        catch (Exception exception) when (exception is ArgumentException || exception is NotSupportedException || exception is PathTooLongException)
+        {
+            return false;
+        }
+    }
+
+    private sealed record SavedSettings(string OutputDirectory, int SettingsVersion, bool IsOutputDirectoryCustom);
+}
+
+public sealed class JobItem : INotifyPropertyChanged
+{
+    private string _status = "等待处理";
+    private string _detail;
+    private double _progress;
+    private bool _isRunning;
+
+    public JobItem(string sourcePath, string name)
+    {
+        SourcePath = sourcePath;
+        Name = name;
+        _detail = Path.GetFileName(sourcePath);
+        FullDetail = sourcePath;
+    }
+
+    public event PropertyChangedEventHandler? PropertyChanged;
+    public string SourcePath { get; }
+    public string Name { get; }
+    public string? OutputDirectory { get; private set; }
+    public string? ResultImage { get; private set; }
+    public string FullDetail { get; private set; }
+    public bool CanProcess => _status == "等待处理" || _status == "失败" || _status == "已取消";
+    public string Status => _status;
+    public bool IsRunning => _isRunning;
+
+    public string Detail
+    {
+        get => _detail;
+        set
+        {
+            _detail = value;
+            OnPropertyChanged();
+        }
+    }
+
+    public double Progress
+    {
+        get => _progress;
+        set
+        {
+            _progress = Math.Clamp(value, 0, 1);
+            OnPropertyChanged();
+        }
+    }
+
+    public Brush StatusBrush
+    {
+        get
+        {
+            if (_status == "失败")
+            {
+                return new SolidColorBrush(Color.FromRgb(222, 151, 132));
+            }
+            if (_status == "已合成" || _status == "已提取" || _status == "已完成")
+            {
+                return new SolidColorBrush(Color.FromRgb(178, 202, 156));
+            }
+            if (_isRunning)
+            {
+                return new SolidColorBrush(Color.FromRgb(221, 221, 206));
+            }
+            return new SolidColorBrush(Color.FromRgb(143, 143, 134));
+        }
+    }
+
+    public void Begin()
+    {
+        _isRunning = true;
+        _status = "处理中";
+        Progress = 0;
+        Detail = "准备解析资源";
+        FullDetail = SourcePath;
+        NotifyState();
+    }
+
+    public void Complete(ExportResult result)
+    {
+        _isRunning = false;
+        Progress = 1;
+        OutputDirectory = result.OutputDirectory;
+        ResultImage = result.ImagePath;
+        if (result.ImagePath == null)
+        {
+            _status = "已提取";
+            Detail = "已导出 " + result.AssetCount + " 个素材";
+        }
+        else
+        {
+            _status = "已完成";
+            Detail = "PNG 与 " + result.AssetCount + " 张素材图片已保存";
+        }
+        FullDetail = "输出：" + result.OutputDirectory;
+        if (result.Warnings.Count > 0)
+        {
+            Detail += " · " + result.Warnings.Count + " 条提示";
+            FullDetail += Environment.NewLine + string.Join(Environment.NewLine, result.Warnings);
+        }
+        NotifyState();
+    }
+
+    public void Fail(string message)
+    {
+        _isRunning = false;
+        _status = "失败";
+        Detail = message;
+        FullDetail = message + Environment.NewLine + SourcePath;
+        NotifyState();
+    }
+
+    public void Cancel()
+    {
+        _isRunning = false;
+        _status = "已取消";
+        Detail = "点击开始处理可重试";
+        FullDetail = "当前任务已取消，已完成的其他任务仍然保留";
+        NotifyState();
+    }
+
+    private void NotifyState()
+    {
+        OnPropertyChanged(nameof(Status));
+        OnPropertyChanged(nameof(IsRunning));
+        OnPropertyChanged(nameof(StatusBrush));
+        OnPropertyChanged(nameof(CanProcess));
+        OnPropertyChanged(nameof(FullDetail));
+    }
+
+    private void OnPropertyChanged([CallerMemberName] string? name = null)
+    {
+        PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(name));
+    }
+}

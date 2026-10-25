@@ -1,0 +1,26 @@
+bin/
+obj/
+release/
+.vs/
+*.user
+
+# Local IDE state and build diagnostics
+.idea/
+*.suo
+*.userosscache
+*.sln.docstates
+*.pdb
+*.log
+
+# Local planning notes, temporary files and exported artifacts
+vibe/
+work/
+outputs/
+*.tmp
+
+# Local environment and operating system files
+.env
+.env.*
+.DS_Store
+Thumbs.db
+Desktop.ini
