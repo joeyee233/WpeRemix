@@ -5,8 +5,13 @@ param(
 
 $ErrorActionPreference = 'Stop'
 $projectFile = Join-Path $PSScriptRoot 'WpeRemix.csproj'
-$publishDirectory = Join-Path $PSScriptRoot 'release\v1.5-win-x64'
-$publishArguments = @('publish', $projectFile, '-c', 'Release', '-r', 'win-x64', '-o', $publishDirectory, '--nologo')
+[xml]$project = Get-Content -LiteralPath $projectFile
+$version = [string]$project.Project.PropertyGroup.Version
+if ([string]::IsNullOrWhiteSpace($version)) {
+    throw '项目未设置版本号'
+}
+$publishDirectory = Join-Path $PSScriptRoot "release\v$version-win-x64"
+$publishArguments = @('publish', $projectFile, '-c', 'Release', '-r', 'win-x64', '-o', $publishDirectory, '--nologo', '-p:DebugType=None', '-p:DebugSymbols=false')
 if ($Standalone) {
     $publishArguments += @('--self-contained', 'true', '-p:PublishSingleFile=true', '-p:IncludeNativeLibrariesForSelfExtract=true')
 } else {

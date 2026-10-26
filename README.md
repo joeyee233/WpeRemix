@@ -8,7 +8,7 @@ Wallpaper Engine 场景资源提取与静态 PNG 合成工具
 
 ## 使用
 
-1. 选择 Wallpaper Engine 壁纸文件夹 / `sence.pkg`场景资源
+1. 选择 Wallpaper Engine 壁纸文件夹 / `scene.pkg`场景资源
     > Wallpaper Engine 选中壁纸右键，在资源管理器中打开
 2. 选择保存目录，开始处理
 
