@@ -48,6 +48,12 @@ public partial class MainWindow : Window, INotifyPropertyChanged
         DataContext = this;
         Jobs.CollectionChanged += (_, _) => RefreshQueueState();
         PreviewDragLeave += (_, _) => ShowDropOverlay = false;
+        PreviewMouseDown += Window_PreviewMouseDown;
+        PreviewKeyDown += CompositionInfo_PreviewKeyDown;
+        Deactivated += (_, _) => CompositionInfoCard.Visibility = Visibility.Collapsed;
+        LocationChanged += (_, _) => CompositionInfoCard.Visibility = Visibility.Collapsed;
+        SizeChanged += (_, _) => CompositionInfoCard.Visibility = Visibility.Collapsed;
+        StateChanged += (_, _) => CompositionInfoCard.Visibility = Visibility.Collapsed;
     }
 
     protected override void OnSourceInitialized(EventArgs e)
@@ -71,12 +77,21 @@ public partial class MainWindow : Window, INotifyPropertyChanged
     public bool CanEdit => !_isBusy && !_isAdding;
     public bool CanCancel => _isBusy && !_cancelRequested;
     public bool CanStart => CanEdit && Jobs.Any(job => job.CanProcess) && !string.IsNullOrWhiteSpace(OutputDirectory);
+    public bool CanUsePrimaryAction
+    {
+        get
+        {
+            if (_isBusy)
+            {
+                return CanCancel;
+            }
+            return CanStart;
+        }
+    }
     public bool CanOpenImage => SelectedJob != null && SelectedJob.HasResult && !string.IsNullOrWhiteSpace(SelectedJob.ResultImage) && File.Exists(SelectedJob.ResultImage);
-    public bool CanOpenResult => SelectedJob != null && SelectedJob.HasResult && !string.IsNullOrWhiteSpace(SelectedJob.OutputDirectory) && Directory.Exists(SelectedJob.OutputDirectory);
     public bool HasSelectedJob => SelectedJob != null;
     public bool HasSelectedReport => !string.IsNullOrWhiteSpace(SelectedDetail);
     public bool HasPreviewCaption => !string.IsNullOrWhiteSpace(PreviewCaption);
-    public bool HasResultActions => CanOpenImage || CanOpenResult;
     public bool CanOpenSelectedPath => FindContainingDirectory(SelectedPath) != null;
     public string SelectedPath
     {
@@ -107,14 +122,14 @@ public partial class MainWindow : Window, INotifyPropertyChanged
             }
             if (_isBusy)
             {
-                return "正在处理…";
+                return "取消处理";
             }
             int count = Jobs.Count(job => job.CanProcess);
             if (count == 0)
             {
                 return "开始处理";
             }
-            return "开始处理  ·  " + count;
+            return "开始处理 x" + count;
         }
     }
 
@@ -146,6 +161,7 @@ public partial class MainWindow : Window, INotifyPropertyChanged
             _isOutputDirectoryCustom = !SameDirectory(value, _defaultOutputDirectory);
             OnPropertyChanged();
             OnPropertyChanged(nameof(CanStart));
+            OnPropertyChanged(nameof(CanUsePrimaryAction));
         }
     }
 
@@ -237,6 +253,7 @@ public partial class MainWindow : Window, INotifyPropertyChanged
     {
         OnPropertyChanged(nameof(JobCount));
         OnPropertyChanged(nameof(CanStart));
+        OnPropertyChanged(nameof(CanUsePrimaryAction));
         OnPropertyChanged(nameof(StartLabel));
         OnPropertyChanged(nameof(CanEdit));
         OnPropertyChanged(nameof(IsBusy));
@@ -279,10 +296,8 @@ public partial class MainWindow : Window, INotifyPropertyChanged
         OnPropertyChanged(nameof(PreviewPlaceholder));
         OnPropertyChanged(nameof(SelectedDetail));
         OnPropertyChanged(nameof(CanOpenImage));
-        OnPropertyChanged(nameof(CanOpenResult));
         OnPropertyChanged(nameof(HasSelectedJob));
         OnPropertyChanged(nameof(HasSelectedReport));
-        OnPropertyChanged(nameof(HasResultActions));
         OnPropertyChanged(nameof(SelectedPath));
         OnPropertyChanged(nameof(CanOpenSelectedPath));
     }
@@ -309,6 +324,64 @@ public partial class MainWindow : Window, INotifyPropertyChanged
             actionHeight = PreviewActions.ActualHeight + PreviewActions.Margin.Top;
         }
         PreviewResultImage.MaxHeight = Math.Max(140, PreviewViewport.ActualHeight - detailHeight - actionHeight);
+    }
+
+    private void CompositionInfo_Click(object sender, RoutedEventArgs e)
+    {
+        if (CompositionInfoCard.Visibility == Visibility.Visible)
+        {
+            CompositionInfoCard.Visibility = Visibility.Collapsed;
+            CompositionInfoButton.Focus();
+        }
+        else
+        {
+            CompositionInfoCard.Visibility = Visibility.Visible;
+            CompositionInfoCard.UpdateLayout();
+            CompositionInfoButton.Focus();
+        }
+    }
+
+    private void CompositionInfo_PreviewKeyDown(object sender, KeyEventArgs e)
+    {
+        if (e.Key == Key.Escape && CompositionInfoCard.Visibility == Visibility.Visible)
+        {
+            CompositionInfoCard.Visibility = Visibility.Collapsed;
+            CompositionInfoButton.Focus();
+            e.Handled = true;
+        }
+    }
+
+    private void Window_PreviewMouseDown(object sender, MouseButtonEventArgs e)
+    {
+        if (CompositionInfoCard.Visibility != Visibility.Visible)
+        {
+            return;
+        }
+        if (IsWithin(e.OriginalSource as DependencyObject, CompositionInfoButton) || IsWithin(e.OriginalSource as DependencyObject, CompositionInfoCard))
+        {
+            return;
+        }
+        CompositionInfoCard.Visibility = Visibility.Collapsed;
+    }
+
+    private static bool IsWithin(DependencyObject? current, DependencyObject root)
+    {
+        while (current != null)
+        {
+            if (current == root)
+            {
+                return true;
+            }
+            if (current is Visual)
+            {
+                current = VisualTreeHelper.GetParent(current);
+            }
+            else
+            {
+                current = LogicalTreeHelper.GetParent(current);
+            }
+        }
+        return false;
     }
 
     internal async Task AddInputsAsync(IEnumerable<string> paths)
@@ -440,12 +513,16 @@ public partial class MainWindow : Window, INotifyPropertyChanged
         if (current == QueuePanel)
         {
             e.Handled = true;
-            AddFiles_Click(sender, e);
+            AddFolder_Click(sender, e);
         }
     }
 
     private async void AddFolder_Click(object sender, RoutedEventArgs e)
     {
+        if (!CanEdit)
+        {
+            return;
+        }
         OpenFolderDialog dialog = new OpenFolderDialog
         {
             Title = "选择一个或多个壁纸文件夹",
@@ -505,22 +582,37 @@ public partial class MainWindow : Window, INotifyPropertyChanged
         }
     }
 
-    private void Remove_Click(object sender, RoutedEventArgs e)
+    private void RemoveJob_Click(object sender, RoutedEventArgs e)
     {
-        if (CanEdit && SelectedJob != null)
+        if (!CanEdit || sender is not FrameworkElement element || element.DataContext is not JobItem item)
         {
-            JobItem removed = SelectedJob;
-            SelectedJob = null;
-            Jobs.Remove(removed);
-            if (Jobs.Count > 0)
-            {
-                SelectedJob = Jobs[0];
-            }
+            return;
         }
+        int index = Jobs.IndexOf(item);
+        if (index < 0)
+        {
+            return;
+        }
+        bool selected = SelectedJob == item;
+        if (selected)
+        {
+            SelectedJob = null;
+        }
+        Jobs.RemoveAt(index);
+        if (selected && Jobs.Count > 0)
+        {
+            SelectedJob = Jobs[Math.Min(index, Jobs.Count - 1)];
+        }
+        e.Handled = true;
     }
 
     private async void Start_Click(object sender, RoutedEventArgs e)
     {
+        if (_isBusy)
+        {
+            Cancel_Click(sender, e);
+            return;
+        }
         if (!CanStart)
         {
             return;
@@ -608,11 +700,12 @@ public partial class MainWindow : Window, INotifyPropertyChanged
 
     private void Cancel_Click(object sender, RoutedEventArgs e)
     {
-        if (_cancellation != null)
+        if (CanCancel && _cancellation != null)
         {
             _cancelRequested = true;
             _cancellation.Cancel();
             OnPropertyChanged(nameof(CanCancel));
+            OnPropertyChanged(nameof(CanUsePrimaryAction));
             OnPropertyChanged(nameof(StartLabel));
         }
     }
@@ -630,14 +723,6 @@ public partial class MainWindow : Window, INotifyPropertyChanged
         if (CanOpenImage && SelectedJob != null)
         {
             OpenPath(SelectedJob.ResultImage!);
-        }
-    }
-
-    private void OpenResult_Click(object sender, RoutedEventArgs e)
-    {
-        if (CanOpenResult && SelectedJob != null)
-        {
-            OpenPath(SelectedJob.OutputDirectory!);
         }
     }
 
@@ -699,6 +784,7 @@ public partial class MainWindow : Window, INotifyPropertyChanged
 
     private void Window_Closing(object? sender, CancelEventArgs e)
     {
+        CompositionInfoCard.Visibility = Visibility.Collapsed;
         if (!IsLoaded)
         {
             return;
@@ -866,26 +952,6 @@ public sealed class JobItem : INotifyPropertyChanged
         }
     }
 
-    public Brush StatusBrush
-    {
-        get
-        {
-            if (_status == "失败")
-            {
-                return new SolidColorBrush(Color.FromRgb(222, 151, 132));
-            }
-            if (_status == "已合成" || _status == "已提取" || _status == "已完成")
-            {
-                return new SolidColorBrush(Color.FromRgb(208, 208, 208));
-            }
-            if (_isRunning)
-            {
-                return new SolidColorBrush(Color.FromRgb(238, 238, 238));
-            }
-            return new SolidColorBrush(Color.FromRgb(143, 143, 143));
-        }
-    }
-
     public void Begin()
     {
         _isRunning = true;
@@ -907,17 +973,18 @@ public sealed class JobItem : INotifyPropertyChanged
         if (result.ImagePath == null)
         {
             _status = "已提取";
-            Detail = "已导出 " + result.AssetCount + " 个素材";
+            Detail = "素材图 x" + result.AssetCount;
         }
         else
         {
             _status = "已完成";
-            Detail = "PNG 与 " + result.AssetCount + " 张素材图片已保存";
+            Detail = "PNG x1，素材图 x" + result.AssetCount;
         }
-        FullDetail = string.Join(Environment.NewLine, result.Warnings);
-        if (result.Warnings.Count > 0)
+        IReadOnlyList<string> specificWarnings = CompositionNotices.GetSpecificWarnings(result.Warnings);
+        FullDetail = string.Join(Environment.NewLine, specificWarnings);
+        if (specificWarnings.Count > 0)
         {
-            Detail += " · " + result.Warnings.Count + " 条提示";
+            Detail += " · " + specificWarnings.Count + " 条提示";
         }
         NotifyState();
     }
@@ -926,7 +993,15 @@ public sealed class JobItem : INotifyPropertyChanged
     {
         _isRunning = false;
         _status = "失败";
-        Detail = message;
+        int lineEnd = message.IndexOfAny(new[] { '\r', '\n' });
+        if (lineEnd >= 0)
+        {
+            Detail = message[..lineEnd];
+        }
+        else
+        {
+            Detail = message;
+        }
         FullDetail = message;
         NotifyState();
     }
@@ -944,7 +1019,6 @@ public sealed class JobItem : INotifyPropertyChanged
     {
         OnPropertyChanged(nameof(Status));
         OnPropertyChanged(nameof(IsRunning));
-        OnPropertyChanged(nameof(StatusBrush));
         OnPropertyChanged(nameof(CanProcess));
         OnPropertyChanged(nameof(HasResult));
         OnPropertyChanged(nameof(FullDetail));

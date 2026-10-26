@@ -136,7 +136,7 @@ public sealed class WallpaperProcessor : IWallpaperProcessor
                     {
                         string recoveryAssets = Path.Combine(itemOutput, "assets");
                         SafeFiles.CopyDirectory(staging, recoveryAssets, cancellationToken);
-                        throw new InvalidOperationException("纹理转换失败，原始素材已保存至：" + recoveryAssets + "；" + exception.Message, exception);
+                        throw new InvalidOperationException("纹理转换失败：" + exception.Message + Environment.NewLine + "原始素材已保存至：" + recoveryAssets, exception);
                     }
                     assets += SafeFiles.EnumerateFiles(staging, cancellationToken).Count(SafeFiles.IsImage);
                     string? imagePath = null;
@@ -161,7 +161,7 @@ public sealed class WallpaperProcessor : IWallpaperProcessor
                         }
                         catch (Exception exception) when (savedAssets != null)
                         {
-                            throw new InvalidOperationException("静态合成失败，素材已保存至：" + savedAssets + "；" + exception.Message, exception);
+                            throw new InvalidOperationException("静态合成失败：" + exception.Message + Environment.NewLine + "素材已保存至：" + savedAssets, exception);
                         }
                         imagePath = composition.ImagePath;
                         warnings.AddRange(composition.Warnings);

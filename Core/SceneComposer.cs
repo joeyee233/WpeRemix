@@ -184,7 +184,7 @@ public sealed class SceneComposer : ISceneComposer
                     throw new InvalidDataException($"图层 {name} 缺少基础纹理");
                 }
                 var textureReference = textures[0].GetString() ?? string.Empty;
-                var texturePath = FindTexture(root, textureReference);
+                var texturePath = FindTexture(root, textureReference, name);
                 var bitmap = LoadBitmap(texturePath, warnings, decodeBudget);
                 var size = Vector(Value(Get(node, "size"), properties, warnings), new double[] { bitmap.PixelWidth, bitmap.PixelHeight, 0 });
                 if (size[0] <= 0 || size[1] <= 0 || size[0] > 100000 || size[1] > 100000)
@@ -367,7 +367,7 @@ public sealed class SceneComposer : ISceneComposer
         return result;
     }
 
-    private static string FindTexture(string root, string reference)
+    private static string FindTexture(string root, string reference, string layerName)
     {
         var normalized = reference.Replace('\\', '/');
         if (!normalized.StartsWith("materials/", StringComparison.OrdinalIgnoreCase))
@@ -394,7 +394,38 @@ public sealed class SceneComposer : ISceneComposer
                 return path;
             }
         }
-        throw new FileNotFoundException($"基础纹理没有成功转换或依赖未打包：{reference}");
+        var description = $"基础纹理 {reference}";
+        if (!string.IsNullOrWhiteSpace(layerName))
+        {
+            description = $"图层 {layerName} 的基础纹理 {reference}";
+        }
+        var textureSource = SafePath(root, normalized + ".tex");
+        if (File.Exists(textureSource))
+        {
+            try
+            {
+                TexturePreflight.Validate(textureSource);
+            }
+            catch (InvalidDataException exception)
+            {
+                throw new InvalidDataException($"{description} 无法用于静态合成：{exception.Message}" + Environment.NewLine + "资源：" + Path.GetRelativePath(root, textureSource), exception);
+            }
+        }
+        var videoPath = SafePath(root, normalized + ".mp4");
+        if (File.Exists(videoPath))
+        {
+            throw new NotSupportedException($"{description} 是视频素材，当前不能作为静态图层合成" + Environment.NewLine + "资源：" + Path.GetRelativePath(root, videoPath));
+        }
+        var conversionLog = SafePath(root, normalized + ".conversion-log.txt");
+        if (File.Exists(conversionLog))
+        {
+            throw new InvalidDataException($"{description} 未能转换为静态图片" + Environment.NewLine + "转换日志：" + Path.GetRelativePath(root, conversionLog));
+        }
+        if (File.Exists(textureSource))
+        {
+            throw new InvalidDataException($"{description} 的 TEX 文件存在，但没有生成可用的静态图片" + Environment.NewLine + "资源：" + Path.GetRelativePath(root, textureSource));
+        }
+        throw new FileNotFoundException($"{description} 的图片和 TEX 文件均不存在，资源可能未打包" + Environment.NewLine + "预期资源：" + Path.GetRelativePath(root, textureSource));
     }
 
     private static string SafePath(string root, string relative)
