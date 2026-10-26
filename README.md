@@ -1,8 +1,11 @@
 # WpeRemix
 
-Wallpaper Engine 场景资源提取与静态 PNG 合成工具 
+Wallpaper Engine 场景资源提取与静态 PNG 合成工具
 
 > 动态特效、脚本、视频、3D 和部分特殊混合效果无法还原
+
+
+![Preview](https://raw.githubusercontent.com/joeyee233/pics/master/picgo/2026-10/WpeRemix-preview.png)
 
 
 
