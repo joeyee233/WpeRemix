@@ -2,7 +2,7 @@
 
 Wallpaper Engine 场景资源提取与静态 PNG 合成工具
 
-![Preview](https://raw.githubusercontent.com/joeyee233/pics/master/picgo/2026-10/WpeRemix-preview.png)
+![Preview](https://raw.githubusercontent.com/joeyee233/imgbed/main/202610/WpeRemix-preview.png)
 
 
 
